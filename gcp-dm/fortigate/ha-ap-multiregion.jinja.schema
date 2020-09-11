@@ -1,0 +1,38 @@
+imports:
+- path: ../utils/netcalc.jinja
+- path: singlevm.jinja
+
+properties:
+  prefix:
+    type: string
+  networks:
+    type: object
+  regions:
+    type: array
+  instanceType:
+    type: string
+    description: Instance size to be used for FGT deployment
+    default: e2-highcpu-4
+  license:
+    type: object
+    description: Licensing information. properties.type can be "byol" or "payg". For BYOL deployments include lics array pointing to the license files.
+    default:
+      type: payg
+  version:
+    type: string
+    description: Firmware version to deploy.
+    default: 6.4.2
+  zones:
+    type: array
+    default:
+     - 'b'
+     - 'b'
+  fwConfig:
+    type: string
+    default: ""
+  routes:
+    type: array
+    default:
+    - destRange: 0.0.0.0/0
+      name: default
+      priority: 100  

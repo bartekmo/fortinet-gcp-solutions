@@ -1,0 +1,32 @@
+imports:
+- path: ../fortigate/ha-ap-multiregion.jinja
+  name: ha-ap-multiregion.jinja
+
+resources:
+- name: HA Multi-region
+  type: ha-ap-multiregion.jinja
+  properties:
+    regions:
+      - europe-west1
+      - us-east1
+    networks:
+      external:
+        name: external
+        ranges:
+          - 10.1.1.0/24
+          - 10.1.2.0/24
+      internal:
+        name: internal
+        ranges:
+          - 10.2.1.0/24
+          - 10.2.2.0/24
+      hasync:
+        name: hasync
+        ranges:
+          - 10.3.1.0/24
+          - 10.3.2.0/24
+      mgmt:
+        name: mgmt
+        ranges:
+          - 10.4.1.0/24
+          - 10.4.2.0/24

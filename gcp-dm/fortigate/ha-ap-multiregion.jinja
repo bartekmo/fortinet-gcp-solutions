@@ -1,0 +1,141 @@
+{% set prefix = properties.prefix | default(env.deployment) %}
+
+{% import "../utils/netcalc.jinja" as netcalc %}
+{% import "../utils/images.jinja" as images %}
+
+{% set firmwareImage=images.getFgtImage( properties.version, properties.license.type ) %}
+
+resources:
+{% for net in ['external', 'internal', 'hasync', 'mgmt' ] %}
+- name: {{prefix}}-{{properties.networks[net].name}}
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+{% for region in properties.regions %}
+- name: {{properties.networks[net].name}}-{{region}}
+  type: compute.v1.subnetwork
+  properties:
+    region: {{region}}
+    network: $(ref.{{prefix}}-{{properties.networks[net].name}}.selfLink)
+    ipCidrRange: {{properties.networks[net].ranges[loop.index0]}}
+{% endfor %}
+{% endfor %}
+
+- name: {{ prefix }}-allow-mgmt
+  type: compute.v1.firewall
+  properties:
+    network: $(ref.{{prefix}}-{{properties.networks['mgmt'].name}}.selfLink)
+    priority: 200
+    sourceRanges:
+    - 0.0.0.0/0
+    targetTags:
+    - fortigate
+    allowed:
+    - IPProtocol: TCP
+      ports:
+      - 443
+      - 22
+- name: {{ prefix }}-allow-hasync
+  type: compute.v1.firewall
+  properties:
+    network: $(ref.{{prefix}}-{{properties.networks['hasync'].name}}.selfLink)
+    priority: 200
+    sourceTags:
+    - fortigate
+    targetTags:
+    - fortigate
+    allowed:
+    - IPProtocol: TCP
+    - IPProtocol: UDP
+    - IPProtocol: ICMP
+
+{% for instance in ["Primary_FGT", "Secondary_FGT"] %}
+- name: {{ instance }}
+  type: singlevm.jinja
+  properties:
+    prefix: {{ prefix }}
+    region: {{ properties.regions[loop.index0] }}
+    zone: {{ properties.regions[ loop.index0 ]}}-{{ properties.zones[ loop.index0 ]}}
+    instanceType: {{ properties.instanceType }}
+    version: {{ properties.version }}
+    name: fgt{{ loop.index }}
+    attachPublicIP: false
+    license:
+      type: {{ properties.license.type }}
+      {% if properties.license.type=='byol' %}
+      lic: {{ properties.license.lics[ loop.index0 ]}}
+      {% endif %}
+    networks:
+      external:
+        vpc: $(ref.{{prefix}}-{{properties.networks['external'].name}}.selfLink)
+        subnet: $(ref.{{properties.networks['external'].name}}-{{properties.regions[loop.index0]}}.selfLink)
+        ipCidrRange: {{ properties.networks.external.ranges[loop.index0] }}
+        networkIP: {{ netcalc.getNthIpWithMask( properties.networks.external.ranges[loop.index0], loop.index ) }}
+      internal:
+        vpc: $(ref.{{prefix}}-{{properties.networks['internal'].name}}.selfLink)
+        subnet: $(ref.{{properties.networks['internal'].name}}-{{properties.regions[loop.index0]}}.selfLink)
+        ipCidrRange: {{ properties.networks.internal.ranges[loop.index0] }}
+        networkIP: {{ netcalc.getNthIpWithMask( properties.networks.internal.ranges[loop.index0], loop.index ) }}
+      hasync:
+        vpc: $(ref.{{prefix}}-{{properties.networks['hasync'].name}}.selfLink)
+        subnet: $(ref.{{properties.networks['hasync'].name}}-{{properties.regions[loop.index0]}}.selfLink)
+        ipCidrRange: {{ properties.networks.hasync.ranges[loop.index0] }}
+        networkIP: {{ netcalc.getNthIpWithMask( properties.networks.hasync.ranges[loop.index0], loop.index ) }}
+      mgmt:
+        vpc: $(ref.{{prefix}}-{{properties.networks['mgmt'].name}}.selfLink)
+        subnet: $(ref.{{properties.networks['mgmt'].name}}-{{properties.regions[loop.index0]}}.selfLink)
+        ipCidrRange: {{ properties.networks.mgmt.ranges[loop.index0] }}
+        networkIP: {{ netcalc.getNthIpWithMask( properties.networks.mgmt.ranges[loop.index0], loop.index ) }}
+  {# Skip routes and cloud firewall rules creation for slave (second) instance #}
+  {% if loop.index0>0 %}
+    routes: {{[]}}
+    createCloudFirewallRules: false
+  {% else %}
+    routes: {{ properties.routes }}
+  {% endif %}
+    fwConfig: |
+      config system ha
+        set group-name "cluster1"
+        set mode a-p
+        set hbdev "port3" 50
+        set session-pickup enable
+        set ha-mgmt-status enable
+        config ha-mgmt-interfaces
+          edit 1
+          set interface "port4"
+          set gateway {{ netcalc.getNthIp( properties.networks.mgmt.ranges[loop.index0], 0 )}}
+          next
+        end
+        set override disable
+        set priority {{ loop.index%2 }}
+        set unicast-hb enable
+        set unicast-hb-peerip {{ netcalc.getNthIp( properties.networks.hasync.ranges[loop.index%2], (loop.index%2)+1 )}}
+        set unicast-hb-netmask {{ netcalc.getNetmaskLong( properties.networks.mgmt.ranges[loop.index0] )}}
+      end
+      config system sdn-connector
+        edit "gcp_conn"
+        set type gcp
+        next
+      end
+      {{ properties.fwConfig | indent(6) }}
+{% endfor %}
+
+- name: {{ prefix }}-fgt-cloudrouter1
+  type: compute.v1.router
+  properties:
+    region: {{ properties.regions[0] }}
+    network: $(ref.{{prefix}}-{{properties.networks['external'].name}}.selfLink)
+    nats:
+    - name: {{ prefix }}-fgt-cloudnat1
+      sourceSubnetworkIpRangesToNat: ALL_SUBNETWORKS_ALL_IP_RANGES
+      natIpAllocateOption: AUTO_ONLY
+
+- name: {{ prefix }}-fgt-cloudrouter2
+  type: compute.v1.router
+  properties:
+    region: {{ properties.regions[1] }}
+    network: $(ref.{{prefix}}-{{properties.networks['external'].name}}.selfLink)
+    nats:
+    - name: {{ prefix }}-fgt-cloudnat2
+      sourceSubnetworkIpRangesToNat: ALL_SUBNETWORKS_ALL_IP_RANGES
+      natIpAllocateOption: AUTO_ONLY
