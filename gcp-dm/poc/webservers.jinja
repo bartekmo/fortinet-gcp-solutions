@@ -1,0 +1,31 @@
+{% set prefix = properties.prefix|default(env.deployment) %}
+
+resources:
+{% for net in properties.networks %}
+- name: {{ prefix }}-webserver{{ loop.index }}
+  type: compute.v1.instance
+  properties:
+    region: {{ properties.region }}
+    zone: {{ properties.zone }}
+    machineType: zones/{{ properties.zone }}/machineTypes/e2-micro
+    disks:
+    - deviceName: {{ prefix }}-webserver{{ loop.index }}
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      diskSizeGb: 10
+      licenses:
+      - projects/ubuntu-os-cloud/global/licenses/ubuntu-1804-lts
+      initializeParams:
+        diskName: {{ prefix }}-webserver{{ loop.index }}-disk
+        sourceImage: https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-1804-lts
+
+    metadata:
+      items:
+      - key: startup-script
+        value: "apt update\napt install nginx -y"
+    networkInterfaces:
+    - network: $(ref.{{ prefix }}-{{ net.name }}.selfLink )
+      subnetwork: $(ref.{{ prefix }}-{{ net.name }}-subnet.selfLink )
+
+{% endfor %}

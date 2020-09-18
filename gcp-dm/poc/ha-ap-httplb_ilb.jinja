@@ -12,7 +12,7 @@ resources:
 {% endfor %}
 
 - name: Fortigate_Cluster_Basic
-  type: ha-ap.jinja
+  type: ha-ap-sdn.jinja
   properties:
     prefix: {{ prefix }}
     region: {{ properties.region }}
@@ -80,63 +80,36 @@ resources:
       end
       {{ properties.fwConfig | indent(6) }}
 
-{# note: NLB requires lagacy health check, do NOT convert the httpHealthCheck below into healthCheck #}
-- name: {{ prefix }}-elb-ha-probe
-  type: compute.v1.httpHealthCheck
-  properties:
-    port: 8008
-    checkIntervalSec: 5
-    timeoutSec: 3
-    unhealthyThreshold: 2
-    healthyThreshold: 1
-- name: {{ prefix }}-elb-hapool
-  type: compute.v1.targetPool
-  properties:
-    region: {{ properties.region }}
-    healthChecks:
-    - $(ref.{{ prefix }}-elb-ha-probe.selfLink)
-    instances:
-    - $(ref.Fortigate_Cluster_Basic.fgt1Link)
-    - $(ref.Fortigate_Cluster_Basic.fgt2Link)
-    sessionAffinity: NONE
-{% for address in properties.publicIPs %}
-- name: {{ prefix }}-elb-tcpfwd-{{ address.name }}
-  type: compute.v1.forwardingRule
-  properties:
-    region: {{ properties.region }}
-    IPAddress: $(ref.{{ prefix }}-{{ address.name }}.selfLink)
-    IPProtocol: TCP
-    portRange: 1-65535
-    target: $(ref.{{ prefix }}-elb-hapool.selfLink)
-    loadBalancingScheme: EXTERNAL
-- name: {{ prefix }}-elb-udpfwd-{{ address.name }}
-  type: compute.v1.forwardingRule
-  properties:
-    region: {{ properties.region }}
-    IPAddress: $(ref.{{ prefix }}-{{ address.name }}.selfLink)
-    IPProtocol: UDP
-    portRange: 1-65535
-    target: $(ref.{{ prefix }}-elb-hapool.selfLink)
-    loadBalancingScheme: EXTERNAL
-{% endfor %}
 
 {% for zoneindx in [0,1] %}
-- name: {{ prefix }}-ilb-hagroup{{ zoneindx }}
+- name: {{ prefix }}-hagroup{{ zoneindx }}
   type: compute.v1.instanceGroup
   properties:
     zone: {{ properties.zones[ zoneindx ]}}
-- name: {{ prefix }}-ilb-hagroup{{zoneindx}}-add
+- name: {{ prefix }}-hagroup{{zoneindx}}-add
   action: gcp-types/compute-v1:compute.instanceGroups.addInstances
   metadata:
     runtimePolicy:
     - CREATE
   properties:
     zone: {{ properties.zones[ zoneindx ]}}
-    instanceGroup: $(ref.{{ prefix }}-ilb-hagroup{{ zoneindx }}.name)
+    instanceGroup: $(ref.{{ prefix }}-hagroup{{ zoneindx }}.name)
     instances:
     - instance: $(ref.{{ prefix }}-fgt{{ loop.index }}.selfLink)
+- name: {{ prefix }}-hagroup{{zoneindx}}-setPort
+  action: gcp-types/compute-v1:compute.instanceGroups.setNamedPorts
+  metadata:
+    runtimePolicy:
+    - CREATE
+  properties:
+    zone: {{ properties.zones[ zoneindx ]}}
+    instanceGroup: $(ref.{{ prefix }}-hagroup{{ zoneindx }}.name)
+    namedPorts:
+    - name: http
+      port: 80
 {% endfor %}
-- name: {{ prefix }}-ilb-ha-probe
+
+- name: {{ prefix }}-http8008-probe
   type: compute.v1.healthCheck
   properties:
     type: HTTP
@@ -146,18 +119,20 @@ resources:
       timeoutSec: 3
       unhealthyThreshold: 2
       healthyThreshold: 1
-- name: {{ prefix }}-ilb-hapool
+
+{# ILB resources #}
+- name: {{ prefix }}-ilb-bes
   type: compute.v1.regionBackendService
   properties:
     region: {{ properties.region }}
-    loadBalancingScheme: INTERNAL 
+    loadBalancingScheme: INTERNAL
     network: {{ properties.networks.internal.vpc }}
     protocol: TCP
     healthChecks:
-    - $(ref.{{ prefix }}-ilb-ha-probe.selfLink)
+    - $(ref.{{ prefix }}-http8008-probe.selfLink)
     backends:
-    - group: $(ref.{{ prefix }}-ilb-hagroup0.selfLink)
-    - group: $(ref.{{ prefix }}-ilb-hagroup1.selfLink)
+    - group: $(ref.{{ prefix }}-hagroup0.selfLink)
+    - group: $(ref.{{ prefix }}-hagroup1.selfLink)
 
 - name: {{ prefix }}-ilb-route-fwdrule
   type: compute.v1.forwardingRule
@@ -167,9 +142,58 @@ resources:
     IPAddress: {{ netcalc.getNthIp( properties.networks.internal.ipCidrRange, 3 )}}
     IPProtocol: TCP
     allPorts: true
-    backendService: $(ref.{{ prefix }}-ilb-hapool.selfLink)
+    backendService: $(ref.{{ prefix }}-ilb-bes.selfLink)
     network: {{ properties.networks.internal.vpc }}
     subnetwork: {{ properties.networks.internal.subnet }}
+
+{# ELB resources #}
+- name: {{ prefix }}-elb-bes
+  type: compute.v1.backendService
+  properties:
+    loadBalancingScheme: EXTERNAL
+    protocol: HTTP
+    portName: http
+    port: 80
+    connectionDraining:
+      drainingTimeoutSec: 300
+    enableCDN: false
+    logConfig:
+      enable: false
+    healthChecks:
+    - $(ref.{{ prefix }}-http8008-probe.selfLink)
+    sessionAffinity: NONE
+    timeoutSec: 30
+    backends:
+    - group: $(ref.{{ prefix }}-hagroup0.selfLink)
+      balancingMode: RATE
+      capacityScaler: 1
+      maxRatePerInstance: 100000
+    - group: $(ref.{{ prefix }}-hagroup1.selfLink)
+      balancingMode: RATE
+      capacityScaler: 1
+      maxRatePerInstance: 100000
+
+- name: {{ prefix }}-elb-urlmap
+  type: compute.v1.urlMap
+  properties:
+    defaultService: $(ref.{{ prefix }}-elb-bes.selfLink)
+
+- name: {{ prefix }}-elb-proxy
+  type: compute.v1.targetHttpProxy
+  properties:
+    urlMap: $(ref.{{ prefix }}-elb-urlmap.selfLink)
+
+{% for address in properties.publicIPs %}
+- name: {{ prefix }}-elb-{{ address.name }}-fwdrule
+  type: compute.v1.globalForwardingRule
+  properties:
+    loadBalancingScheme: EXTERNAL
+    portRange: 80-80
+    IPProtocol: TCP
+    target: $(ref.{{ prefix }}-elb-proxy.selfLink)
+{% endfor %}
+
+
 {% for route in properties.routes %}
 {% if "name" in route %}
 - name: {{ prefix }}-{{ route.name }}

@@ -1,15 +1,12 @@
 info:
-  title: Fortigate ELB/ILB HA Active-Passive cluster
-  description: Fortigate High Availability Active-Passive cluster in ELB/ILB sandwich
+  title: Single Fortiweb VM
   version: 0.9
 
 imports:
-- path: https://raw.githubusercontent.com/40net-cloud/fortinet-gcp-solutions/master/gcp-dm/utils/netcalc.jinja
-- path: https://raw.githubusercontent.com/40net-cloud/fortinet-gcp-solutions/master/gcp-dm/fortigate/ha-ap.jinja
-  name: ha-ap-sdn.jinja
+- path: ../utils/netcalc.jinja
 
 required:
-- zones
+- zone
 - region
 - networks
 
@@ -17,28 +14,26 @@ properties:
   prefix:
     type: string
     description: Prefix to be added to all resource names
+  name:
+    type: string
+    description: (optional) Name of the firewall instance (minus prefix)
+    default: fgt
   region:
     type: string
     description: Region to deploy to
-  zone1:
+  zone:
     type: string
     description: Availability zone name for master instance
-  zone2:
-    type: string
-    description: Availability zone name for slave instance
+    metadata: gce-zone
   instanceType:
     type: string
     description: Instance size to be used for FGT deployment
-    default: e2-highcpu-4
+    default: e2-standard-1
   license:
     type: object
-    description: Licensing information. properties.type can be "byol" or "payg". For BYOL deployments include lics array pointing to the license files.
+    description: Licensing information. properties.type can be "byol" or "payg". For BYOL deployments include licproperty pointing to the license files.
     default:
       type: payg
-  version:
-    type: string
-    description: Firmware version to deploy.
-    default: 6.4.2
   networks:
     type: object
     description: Indicate VPC Networks and subnets to be used (internal, external, hasync, mgmt). Each network need references to vpc and subnet (vpc and subnet properties) as well as cidr defined.
@@ -50,18 +45,24 @@ properties:
     type: boolean
     description: Enable or disable serial port for instances
     default: true
+  externalIP:
+    type: object
+    description: (optional) Address of existing Public IP to be used with the VM instead of automatically generated one
+  attachPublicIP:
+    type: boolean
+    description: Set to false for deployments without directly attached public IP
+    default: true
   fwConfig:
     type: string
     description: Additional configuration to be passed to the firewall
     default: ""
-  publicIPs:
-    type: array
-    description: Array of names for public IPs to be connected. Used only with fortigate ELB deployments
-    default:
-    - name: ext-ip
   routes:
     type: array
     default:
     - destRange: 0.0.0.0/0
-      name: ilb-route-default
+      name: default
       priority: 100
+  createCloudFirewallRules:
+    type: boolean
+    default: true
+    description: Can be used to skip creating cloud firewall rules and direct route (e.g. for HA slave instance)
