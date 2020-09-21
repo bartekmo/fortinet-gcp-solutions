@@ -1,5 +1,5 @@
 imports:
-- path: https://raw.githubusercontent.com/40net-cloud/fortinet-gcp-solutions/master/gcp-dm/hub/fortigate-security-hub.jinja
+- path: ../hub/fortigate-security-hub.jinja
   name: fortigate-security-hub.jinja
 - path: ha-ap-httplb_ilb.jinja
   name: fortigate.jinja
@@ -117,3 +117,5 @@ outputs:
   value: $(ref.SecurityHub.Management_IP)
 - name: Default_Password
   value: $(ref.SecurityHub.Default_Password)
+- name: Inbound_Service_Address
+  value: $(ref.SecurityHub.Inbound_Service_Addresses[0])
