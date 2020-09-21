@@ -4,6 +4,7 @@ imports:
 - path: ha-ap-httplb_ilb.jinja
   name: fortigate.jinja
 - path: webservers.jinja
+- path: bastion.jinja
 
 resources:
 - name: SecurityHub
@@ -108,6 +109,14 @@ resources:
     - name: tier1
     - name: tier2
     dummy: $(ref.SecurityHub.Default_Password)
+
+- name: Web Servers Bastion
+  type: bastion.jinja
+  properties:
+    region: europe-west1
+    zone: europe-west1-d
+    network:
+      name: hub-internal
 
 outputs:
 - name: Management_IP

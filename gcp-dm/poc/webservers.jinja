@@ -27,7 +27,7 @@ resources:
         value: |
           apt update
           apt install nginx -y
-          wget -o /etc/nginx/sites-available/proxy "https://github.com/bartekmo/fortinet-gcp-solutions/raw/poc20200914/gcp-dm/poc/nginx/proxy"
+          wget -O /etc/nginx/sites-available/proxy "https://github.com/bartekmo/fortinet-gcp-solutions/raw/poc20200914/gcp-dm/poc/nginx/proxy"
           rm /etc/nginx/sites-enabled/default
           ln -s /etc/nginx/sites-available/proxy /etc/nginx/sites-enabled/
           systemctl restart nginx
@@ -36,8 +36,8 @@ resources:
         value: |
           apt update
           apt install nginx -y
-          wget -o /var/www/html/rtt.hmtl "https://github.com/bartekmo/fortinet-gcp-solutions/raw/poc20200914/gcp-dm/poc/nginx/rtt.html"
-          wget -o /var/www/html/index.hmtl "https://github.com/bartekmo/fortinet-gcp-solutions/raw/poc20200914/gcp-dm/poc/nginx/index.html"
+          wget -O /var/www/html/rtt.html "https://github.com/bartekmo/fortinet-gcp-solutions/raw/poc20200914/gcp-dm/poc/nginx/rtt.html"
+          wget -O /var/www/html/index.html "https://github.com/bartekmo/fortinet-gcp-solutions/raw/poc20200914/gcp-dm/poc/nginx/index.html"
 
       {% endif %}
     networkInterfaces:

@@ -1,0 +1,54 @@
+{% set prefix = properties.prefix|default(env.deployment) %}
+
+resources:
+- name: {{ prefix }}-bastion
+  type: compute.v1.instance
+  properties:
+    region: {{ properties.region }}
+    zone: {{ properties.zone }}
+    machineType: zones/{{ properties.zone }}/machineTypes/e2-micro
+    disks:
+    - deviceName: {{ prefix }}-bastion
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      diskSizeGb: 10
+      licenses:
+      - projects/ubuntu-os-cloud/global/licenses/ubuntu-minimal-2004-lts
+      initializeParams:
+        diskName: {{ prefix }}-bastion-disk
+        sourceImage: https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-minimal-2004-lts
+    networkInterfaces:
+    - network: $(ref.{{ prefix }}-{{properties.network.name }}.selfLink )
+      subnetwork: $(ref.{{ prefix }}-{{ properties.network.name }}-subnet.selfLink )
+      accessConfigs:
+      - name: bastion nat
+        type: ONE_TO_ONE_NAT
+    tags:
+      items:
+      - bastion
+  metadata:
+    dependsOn:
+    - {{ prefix }}-fgt1
+    - {{ prefix }}-fgt2
+
+- name: {{ prefix }}-bastion-route-bypass
+  type: compute.v1.route
+  properties:
+    destRange: 0.0.0.0/0
+    network: $(ref.{{ prefix }}-{{properties.network.name }}.selfLink )
+    nextHopGateway: projects/se-projects-242100/global/gateways/default-internet-gateway
+    priority: 99
+    tags:
+    - bastion
+
+- name: stop-bastion
+  action: gcp-types/compute-v1:compute.instances.stop
+  properties:
+    instance: {{ prefix }}-bastion
+    zone: {{ properties.zone }}
+  metadata:
+    dependsOn:
+    - {{ prefix }}-bastion
+    runtimePolicy:
+    - CREATE
