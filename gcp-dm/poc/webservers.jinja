@@ -27,5 +27,10 @@ resources:
     networkInterfaces:
     - network: $(ref.{{ prefix }}-{{ net.name }}.selfLink )
       subnetwork: $(ref.{{ prefix }}-{{ net.name }}-subnet.selfLink )
+  metadata:
+    dependsOn:
+    - {{ prefix }}-default-via-fgt
+    - {{ prefix }}-peering-hub-to-tier{{ loop.index }}
+    - {{ prefix }}-peering-tier{{ loop.index }}-to-hub
 
 {% endfor %}

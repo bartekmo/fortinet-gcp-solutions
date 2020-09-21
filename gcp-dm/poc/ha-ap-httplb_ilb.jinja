@@ -5,10 +5,10 @@ resources:
 
 {% for address in properties.publicIPs %}
 - name: {{ prefix }}-{{ address.name }}
-  type: compute.v1.address
+  type: compute.v1.globalAddress
   properties:
-    region: {{ properties.region }}
-    description: Public IP for FGT cluster
+    description: Inbound Service IP
+    ipVersion: IPV4
 {% endfor %}
 
 - name: Fortigate_Cluster_Basic
@@ -34,16 +34,7 @@ resources:
       end
       config system interface
         edit port1
-          unset allowaccess
-          set secondary-IP enable
-          config secondaryip
-  {%- for address in properties.publicIPs %}
-            edit {{ loop.index }}
-            set ip $(ref.{{ prefix }}-{{ address.name }}.address) 255.255.255.255
-            set allowaccess probe-response
-            next
-  {%- endfor %}
-          end
+          set allowaccess probe-response
         next
         edit port2
           unset allowaccess
@@ -187,6 +178,7 @@ resources:
 - name: {{ prefix }}-elb-{{ address.name }}-fwdrule
   type: compute.v1.globalForwardingRule
   properties:
+    IPAddress: $(ref.{{ prefix }}-{{ address.name }}.selfLink)
     loadBalancingScheme: EXTERNAL
     portRange: 80-80
     IPProtocol: TCP
