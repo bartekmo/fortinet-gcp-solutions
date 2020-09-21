@@ -23,7 +23,23 @@ resources:
     metadata:
       items:
       - key: startup-script
-        value: "apt update\napt install nginx -y"
+      {% if loop.index==1 %}
+        value: |
+          apt update
+          apt install nginx -y
+          wget -o /etc/nginx/sites-available/proxy "https://github.com/bartekmo/fortinet-gcp-solutions/raw/poc20200914/gcp-dm/poc/nginx/proxy"
+          rm /etc/nginx/sites-enabled/default
+          ln -s /etc/nginx/sites-available/proxy /etc/nginx/sites-enabled/
+          systemctl restart nginx
+      {% endif %}
+      {% if loop.index==2 %}
+        value: |
+          apt update
+          apt install nginx -y
+          wget -o /var/www/html/rtt.hmtl "https://github.com/bartekmo/fortinet-gcp-solutions/raw/poc20200914/gcp-dm/poc/nginx/rtt.html"
+          wget -o /var/www/html/index.hmtl "https://github.com/bartekmo/fortinet-gcp-solutions/raw/poc20200914/gcp-dm/poc/nginx/index.html"
+
+      {% endif %}
     networkInterfaces:
     - network: $(ref.{{ prefix }}-{{ net.name }}.selfLink )
       subnetwork: $(ref.{{ prefix }}-{{ net.name }}-subnet.selfLink )
