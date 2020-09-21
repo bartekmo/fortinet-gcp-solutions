@@ -44,7 +44,7 @@ const loop = ()=>{
   req.timeout = beat*0.8;
   req.addEventListener("load", pong );
   req.addEventListener("timeout", pongTimeout );
-  req.open( "GET", window.location.href, true );
+  req.open( "GET", window.location.href+"?fuzz="+Math.random(), true );
   pingTime = new Date().getTime();
   req.send();
   loopStep = setTimeout(loop,beat);
