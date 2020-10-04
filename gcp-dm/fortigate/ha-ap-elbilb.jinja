@@ -4,11 +4,13 @@
 resources:
 
 {% for address in properties.publicIPs %}
+{% if not selfLink in address %}
 - name: {{ prefix }}-{{ address.name }}
   type: compute.v1.address
   properties:
     region: {{ properties.region }}
     description: Public IP for FGT cluster
+{% endif %}
 {% endfor %}
 
 - name: Fortigate_Cluster_Basic
@@ -104,7 +106,11 @@ resources:
   type: compute.v1.forwardingRule
   properties:
     region: {{ properties.region }}
+    {% if selfLink in address %}
+    IPAddress: {{ address.selfLink }}
+    {% else %}
     IPAddress: $(ref.{{ prefix }}-{{ address.name }}.selfLink)
+    {% endif %}
     IPProtocol: TCP
     portRange: 1-65535
     target: $(ref.{{ prefix }}-elb-hapool.selfLink)
@@ -113,7 +119,11 @@ resources:
   type: compute.v1.forwardingRule
   properties:
     region: {{ properties.region }}
+    {% if selfLink in address %}
+    IPAddress: {{ address.selfLink }}
+    {% else %}
     IPAddress: $(ref.{{ prefix }}-{{ address.name }}.selfLink)
+    {% endif %}
     IPProtocol: UDP
     portRange: 1-65535
     target: $(ref.{{ prefix }}-elb-hapool.selfLink)
@@ -150,7 +160,7 @@ resources:
   type: compute.v1.regionBackendService
   properties:
     region: {{ properties.region }}
-    loadBalancingScheme: INTERNAL 
+    loadBalancingScheme: INTERNAL
     network: {{ properties.networks.internal.vpc }}
     protocol: TCP
     healthChecks:
