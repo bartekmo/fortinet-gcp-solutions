@@ -4,7 +4,7 @@
 resources:
 
 {% for address in properties.publicIPs %}
-{% if not selfLink in address %}
+{% if not "selfLink" in address %}
 - name: {{ prefix }}-{{ address.name }}
   type: compute.v1.address
   properties:
@@ -39,7 +39,7 @@ resources:
           unset allowaccess
           set secondary-IP enable
           config secondaryip
-  {%- for address in properties.publicIPs %}
+  {%- for address in properties.publicIPs if not "selfLink" in address %}
             edit {{ loop.index }}
             set ip $(ref.{{ prefix }}-{{ address.name }}.address) 255.255.255.255
             set allowaccess probe-response
@@ -106,7 +106,7 @@ resources:
   type: compute.v1.forwardingRule
   properties:
     region: {{ properties.region }}
-    {% if selfLink in address %}
+    {% if "selfLink" in address %}
     IPAddress: {{ address.selfLink }}
     {% else %}
     IPAddress: $(ref.{{ prefix }}-{{ address.name }}.selfLink)
@@ -119,7 +119,7 @@ resources:
   type: compute.v1.forwardingRule
   properties:
     region: {{ properties.region }}
-    {% if selfLink in address %}
+    {% if "selfLink" in address %}
     IPAddress: {{ address.selfLink }}
     {% else %}
     IPAddress: $(ref.{{ prefix }}-{{ address.name }}.selfLink)
@@ -206,5 +206,7 @@ outputs:
 - name: Inbound_Service_Addresses
   value:
   {%- for address in properties.publicIPs %}
+  {% if not "selfLink" in address %}
   - {{address.name}}: $(ref.{{ prefix }}-{{ address.name }}.address)
+  {% endif %}
   {% endfor %}
