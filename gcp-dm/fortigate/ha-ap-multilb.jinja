@@ -1,0 +1,207 @@
+{% set prefix = properties.prefix|default(env.deployment) %}
+{% import "../utils/netcalc.jinja" as netcalc %}
+
+{% set region=properties.zones[0].split('-')[0]~'-'~properties.zones[0].split('-')[1] %}
+{% set reservedInterfaces=[3,4] %}
+
+resources:
+{% for vm in ["Primary", "Secondary"] %}
+{% set vmLoop=loop %}
+- name: Fortigate {{vm}}
+  type: fgt.jinja
+  properties:
+    prefix: {{ prefix }}
+    name: fgt{{ loop.index }}
+    zone: {{ properties.zones[loop.index0]}}
+    instanceType: {{ properties.instanceType }}
+    {% if 0==loop.index0 %}
+    createCloudFirewallRules: true
+    {% else %}
+    createCloudFirewallRules: false
+    {% endif %}
+    license:
+      type: {{ properties.license.type }}
+      {% if ('byol'==properties.license.type) and (lics in properties.license)%}
+      lic: {{ properties.license.lics[ loop.index0 ]}}
+      {% endif %}
+    version: {{ properties.version }}
+    serviceAccount: {{ properties.serviceAccount }}
+    serialPortEnable: {{ properties.serialPortEnable }}
+    routes: []
+    networks:
+    {% for nic in properties.networks %}
+    - vpc: {{ nic.vpc }}
+      subnet: {{ nic.subnet }}
+      ipCidrRange: {{ nic.ipCidrRange }}
+      networkIP: {{ netcalc.getNthIpWithMask( nic.ipCidrRange, vmLoop.index ) }}
+      {% if 4==loop.index %} {# public vpcs might use external load balancer. need some additional parametrization here #}
+      externalIP:
+        name: mgmt{{ vmLoop.index }}
+      {% endif %}
+    {% endfor %}
+    fwConfig: |
+      config system ha
+        set group-name "cluster1"
+        set mode a-p
+        set hbdev "port3" 50
+        set session-pickup enable
+        set ha-mgmt-status enable
+        config ha-mgmt-interfaces
+          edit 1
+          set interface "port4"
+          set gateway {{ netcalc.getNthIp( properties.networks[3].ipCidrRange, 0 )}}
+          next
+        end
+        set override disable
+        set priority {{ loop.index%2 }}
+        set unicast-hb enable
+        set unicast-hb-peerip {{ netcalc.getNthIp( properties.networks[2].ipCidrRange, (loop.index%2)+1 )}}
+        set unicast-hb-netmask {{ netcalc.getNetmaskLong( properties.networks[2].ipCidrRange )}}
+      end
+      config system probe-response
+        set mode http-probe
+        set http-probe-value OK
+      end
+      config system interface
+      {%- for network in properties.networks %}
+      {%- if not loop.index in reservedInterfaces %}
+        edit port{{ loop.index }}
+        set secondary-IP enable
+        config secondaryip
+          edit 1
+          set ip $(ref.{{ prefix }}-{{ network.name }}-routelb.IPAddress) 255.255.255.255
+          set allowaccess probe-response
+          next
+        end
+        next
+      {%- endif %}
+      {%- endfor %}
+      end
+      config router static
+      {%- for network in properties.networks %}
+      {%- if not loop.index in reservedInterfaces%}
+      edit 10{{loop.index}}
+        set dst 35.191.0.0/16
+        set device port2
+        set gateway {{ netcalc.getNthIp( network.ipCidrRange, 0 )}}
+      next
+      edit 11{{loop.index}}
+        set dst 130.211.0.0/22
+        set device port2
+        set gateway {{ netcalc.getNthIp( network.ipCidrRange, 0 )}}
+      next
+      {%- endif %}
+      {%- endfor %}
+      end
+{% endfor%}
+
+
+{% for zoneindx in [0,1] %}
+- name: {{ prefix }}-hagroup{{ zoneindx }}
+  type: compute.v1.instanceGroup
+  properties:
+    zone: {{ properties.zones[ zoneindx ]}}
+- name: {{ prefix }}-hagroup{{zoneindx}}-add
+  action: gcp-types/compute-v1:compute.instanceGroups.addInstances
+  metadata:
+    runtimePolicy:
+    - CREATE
+  properties:
+    zone: {{ properties.zones[ zoneindx ]}}
+    instanceGroup: $(ref.{{ prefix }}-hagroup{{ zoneindx }}.name)
+    instances:
+    - instance: $(ref.{{ prefix }}-fgt{{ loop.index }}.selfLink)
+- name: {{ prefix }}-hagroup{{zoneindx}}-setPort
+  action: gcp-types/compute-v1:compute.instanceGroups.setNamedPorts
+  metadata:
+    runtimePolicy:
+    - CREATE
+  properties:
+    zone: {{ properties.zones[ zoneindx ]}}
+    instanceGroup: $(ref.{{ prefix }}-hagroup{{ zoneindx }}.name)
+    namedPorts:
+    - name: http
+      port: 80
+{% endfor %}
+
+- name: {{ prefix }}-http8008-probe
+  type: compute.v1.healthCheck
+  properties:
+    type: HTTP
+    httpHealthCheck:
+      port: 8008
+      checkIntervalSec: 5
+      timeoutSec: 3
+      unhealthyThreshold: 2
+      healthyThreshold: 1
+
+{# ILB resources #}
+{% for network in properties.networks %}
+{% if not loop.index in reservedInterfaces  %}
+- name: {{ prefix }}-{{ network.name }}-lbbes
+  type: compute.v1.regionBackendService
+  properties:
+    region: {{ region }}
+    loadBalancingScheme: INTERNAL
+    network: {{ network.vpc }}
+    protocol: TCP
+    healthChecks:
+    - $(ref.{{ prefix }}-http8008-probe.selfLink)
+    backends:
+    - group: $(ref.{{ prefix }}-hagroup0.selfLink)
+    - group: $(ref.{{ prefix }}-hagroup1.selfLink)
+
+- name: {{ prefix }}-{{ network.name }}-routelb
+  type: compute.v1.forwardingRule
+  properties:
+    region: {{ region }}
+    loadBalancingScheme: INTERNAL
+    IPAddress: {{ netcalc.getNthIp( network.ipCidrRange, 3 )}}
+    IPProtocol: TCP
+    allPorts: true
+    backendService: $(ref.{{ prefix }}-{{ network.name }}-lbbes.selfLink)
+    network: {{ network.vpc }}
+    subnetwork: {{ network.subnet }}
+
+{% for route in properties.routes %}
+{% if ( "name" in route ) and ( not "public" in network ) %}
+- name: {{ prefix }}-{{ network.name }}-route-{{ route.name }}
+{% else %}
+- name: {{ prefix }}-{{ network.name }}-ilb-route{{ loop.index0 }}
+{% endif %}
+  type: compute.v1.route
+  properties:
+    destRange: {{ route.destRange }}
+    {% if "priority" in route %}
+    priority: {{ route.priority }}
+    {% endif %}
+    network: {{ network.vpc }}
+    nextHopIlb: $(ref.{{ prefix }}-{{ network.name }}-routelb.selfLink )
+    tags: {{ route.tags | default([])}}
+    description: {{ route.description | default("route via FGT") }}
+{% endfor %}{# for each route #}
+{% endif %}
+
+{# add direct default route in public networks for fgt instance to prevent route looping #}
+{% if network.public %}
+- name: {{ prefix }}-{{ network.name }}-route-fgt-direct
+  type: compute.v1.route
+  properties:
+    destRange: 0.0.0.0/0
+    priority: 10
+    network: {{ network.vpc }}
+    nextHopGateway: projects/{{ env.project }}/global/gateways/default-internet-gateway
+    tags: [{{ prefix }}-fgt]
+{% endif %}
+{% endfor %}{# for each network #}
+
+{# TODO: dodaj nat na port1#}
+- name: {{ prefix }}-cloudnat-router
+  type: compute.v1.router
+  properties:
+    region: {{ properties.region }}
+    network: {{ properties.networks[0].vpc }}
+    nats:
+    - name: {{ prefix }}-cloudnat
+      sourceSubnetworkIpRangesToNat: ALL_SUBNETWORKS_ALL_IP_RANGES
+      natIpAllocateOption: AUTO_ONLY

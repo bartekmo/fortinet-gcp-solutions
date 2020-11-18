@@ -1,0 +1,39 @@
+{% set prefix = properties.prefix|default(env.deployment)  %}
+{% set region=properties.region | default("europe-west3") %}
+
+resources:
+{% for network in properties.networks %}
+- name: {{prefix}}-{{ network.name }}-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+
+- name: {{prefix}}-{{ network.name }}-subnet
+  type: compute.v1.subnetwork
+  properties:
+    region: {{ region }}
+    network: $(ref.{{ prefix }}-{{ network.name }}-vpc.selfLink)
+    ipCidrRange: {{ network.ipCidrRange }}
+{% endfor %}
+
+- name: Fortigates
+  type: ha-ap-multilb.jinja
+  properties:
+    prefix: {{ prefix }}
+    zones:
+    - {{ region }}-b
+    - {{ region }}-c
+    instanceType: e2-standard-8
+    license: {{ properties.license }}
+    networks:
+    {% for nic in properties.networks %}
+    - name: {{ nic.name }}
+      vpc: $(ref.{{ prefix }}-{{ nic.name }}-vpc.selfLink)
+      subnet: $(ref.{{ prefix }}-{{ nic.name }}-subnet.selfLink)
+      ipCidrRange: {{ nic.ipCidrRange }}
+      {% if "public" in nic %}
+      public: true
+      externalIP:
+        name: {{ nic.name }}
+      {% endif %}
+    {% endfor %}

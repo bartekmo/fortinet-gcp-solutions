@@ -1,0 +1,42 @@
+imports:
+- path: ../fortigate/fgtvm.jinja
+  name: fgtvm.jinja
+
+resources:
+- name: bm-external-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+- name: bm-protected-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+# ...and some subnets
+- name: bmexternal-uswest1
+  type: compute.v1.subnetwork
+  properties:
+    region: us-west1
+    network: $(ref.bm-external-vpc.selfLink)
+    ipCidrRange: 172.17.1.0/24
+- name: bmprotected-uswest1
+  type: compute.v1.subnetwork
+  properties:
+    region: us-west1
+    network: $(ref.bm-protected-vpc.selfLink)
+    ipCidrRange: 172.17.0.0/24
+
+- name: bm-fgt
+  type: fgtvm.jinja
+  properties:
+    region: us-west2
+    zone: us-west1-b
+    networks:
+    - name: ext
+      vpc: $(ref.bm-external-vpc.selfLink)
+      subnet: $(ref.bmexternal-uswest1.selfLink)
+      ipCidrRange: 172.17.1.0/24
+      externalIP:
+        name: eip1
+    - vpc: $(ref.bm-protected-vpc.selfLink)
+      subnet: $(ref.bmprotected-uswest1.selfLink)
+      networkIP: 172.17.0.10/24

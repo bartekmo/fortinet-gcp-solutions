@@ -1,0 +1,27 @@
+imports:
+- path: poc2.jinja
+- path: ../fortigate/fgtvm.jinja
+  name: fgtvm.jinja
+
+resources:
+- name: Nokia PoC
+  type: poc2.jinja
+  properties:
+    region: europe-west3
+    networks:
+    - name: internet
+      ipCidrRange: 10.130.64.0/28
+      public: true
+    - name: ic
+      ipCidrRange: 10.130.64.16/28
+    - name: hasync
+      ipCidrRange: 10.130.64.32/28
+    - name: mgmt
+      ipCidrRange: 10.130.65.64/28
+      public: true
+    - name: zone-low
+      ipCidrRange: 10.130.65.16/28
+    - name: zone-med
+      ipCidrRange: 10.130.65.32/28
+    - name: zone-high
+      ipCidrRange: 10.130.65.64/28

@@ -1,0 +1,29 @@
+imports:
+- path: poc2lb.jinja
+- path: ../fortigate/ha-ap-multilb.jinja
+  name: ha-ap-multilb.jinja
+
+resources:
+- name: Nokia PoC
+  type: poc2lb.jinja
+  properties:
+    region: europe-west1
+    license:
+      type: byol
+    networks:
+    - name: internet
+      ipCidrRange: 10.130.64.0/28
+      public: true
+    - name: ic
+      ipCidrRange: 10.130.64.16/28
+    - name: hasync
+      ipCidrRange: 10.130.64.32/28
+    - name: mgmt
+      ipCidrRange: 10.130.64.64/28
+      public: true
+    - name: zone-low
+      ipCidrRange: 10.130.64.128/28
+    - name: zone-med
+      ipCidrRange: 10.130.64.144/28
+    - name: zone-high
+      ipCidrRange: 10.130.64.160/28

@@ -1,0 +1,123 @@
+# This example Deployment Manager configuration file demonstraces deployment
+# of a Fortigate with multiple external IP addresses.
+# It will create two VPC networks with subnets and deploy a Fortigate with
+# two IP addresses attached using protocol forwarding.
+
+imports:
+- path: ../fgsp-aa-multilb.jinja
+  name: fgsp-aa-multilb.jinja
+- path: ../../../../../secrets/FG-VM04_24757586/FGVM04TM20001661.lic
+  name: license1.lic
+- path: ../../../../../secrets/FG-VM04_24757586/FGVM04TM20001662.lic
+  name: license2.lic
+
+{% set region=europe-west3 %}
+{% set prefix=bm-poc5 %}
+
+resources:
+{% for net in properties.nets %}
+- name: {{ prefix }}-{{ net.name }}-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+- name: {{ region }}-{{prefix}}-{{ net.name }}-subnet
+  type: compute.v1.subnetwork
+  properties:
+    region: {{ region }}
+    network: $(ref.{{ prefix }}-{{ net.name }}-vpc.selfLink)
+    ipCidrRange: {{ net.cidr }}
+{% endfor %}
+
+- name: My_Fortigate_Cluster
+  type: fgsp-aa-multilb.jinja
+  properties:
+    zones:
+    - {{ region }}-b
+    - {{ region }}-c
+    license:
+      type: byol
+      lics:
+      - license1.lic
+      - license2.lic
+    networks:
+    {% for net in properties.nets %}
+    - name: {{ net.name }}
+      ipCidrRange: {{ net.cidr }}
+      {% if loop.index == 1 %}
+      public: true
+      serviceIPs:
+      - app1
+      - app2
+      externalIP:
+        name: mgmt-fgt
+      {% endif %}
+    {% endfor %}
+    - name: external
+      vpcLink: $(ref.bmtest-external-vpc.selfLink)
+      subnetLink: $(ref.external-uswest1.selfLink)
+      ipCidrRange: 172.17.1.0/24
+      public: true
+      serviceIPs:
+      - name: app1
+      - name: app2
+      externalIP:
+        name: fgt-mgmt
+    - name: protected
+      vpcLink: $(ref.bmtest-protected-vpc.selfLink)
+      subnetLink: $(ref.protected-uswest1.selfLink)
+      ipCidrRange: 172.17.0.0/24
+    - name: datasync
+      vpcLink: $(ref.bmtest-datasync-vpc.selfLink)
+      subnetLink: $(ref.datasync-uswest1.selfLink)
+      ipCidrRange: 172.17.10.0/24
+    fwConfig: |
+      config firewall vip
+      edit "app1-to-5"
+        set service "HTTP"
+        set extip 34.105.83.203
+        set mappedip "172.17.0.5"
+        set extintf "port1"
+      next
+      end
+      config firewall policy
+      edit 1
+        set name "allow-out"
+        set srcintf "port2"
+        set dstintf "port1"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set schedule "always"
+        set service "ALL"
+        set utm-status enable
+        set ssl-ssh-profile "certificate-inspection"
+        set av-profile "default"
+        set ips-sensor "default"
+        set application-list "default"
+        set logtraffic all
+        set ippool enable
+        set poolname "bmtest4-app1"
+        set nat enable
+      next
+      edit 2
+        set name "app1-to-5-http"
+        set srcintf "port1"
+        set dstintf "port2"
+        set srcaddr "all"
+        set dstaddr "app1-to-5"
+        set action accept
+        set schedule "always"
+        set service "HTTP"
+        set utm-status enable
+        set ssl-ssh-profile "certificate-inspection"
+        set av-profile "default"
+        set ips-sensor "default"
+        set logtraffic all
+      next
+      end
+
+
+# To make our lives easier, let's pass public IP and default password from template outputs
+outputs:
+- name: template_output
+  value: $(ref.My_Fortigate_Cluster)

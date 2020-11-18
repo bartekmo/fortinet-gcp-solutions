@@ -1,0 +1,86 @@
+imports:
+- path: poc2aa.jinja
+- path: ../fortigate/fgsp-aa-multilb.jinja
+  name: fgsp-aa-multilb.jinja
+- path: ../../../../../secrets/FG-VM04_24757586/FGVM04TM20001661.lic
+  name: license1.lic
+- path: ../../../../../secrets/FG-VM04_24757586/FGVM04TM20001662.lic
+  name: license2.lic
+
+
+resources:
+- name: AA Perf Test
+  type: poc2aa.jinja
+  properties:
+    region: europe-west1
+    license:
+      type: byol
+      lics:
+      - license1.lic
+      - license2.lic
+    networks:
+    - name: public
+      ipCidrRange: 10.130.64.0/28
+      public: true
+      mgmt: true
+    - name: test1
+      description: interconnect
+      ipCidrRange: 10.0.0.0/24
+    - name: datasync
+      description: datasync
+      ipCidrRange: 10.130.64.32/28
+      allowaccess: ping https ssh
+    - name: test2
+      description: protected zone
+      ipCidrRange: 10.1.0.0/24
+
+- name: bm-aa-tester1-logdisk
+  type: compute.v1.disk
+  properties:
+    zone: europe-west1-b
+    diskSizeGb: 200.0
+- name: bm-aa-tester1
+  type: compute.v1.instance
+  properties:
+    zone: europe-west1-b
+    machineType: zones/europe-west1-b/machineTypes/e2-standard-8
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      guestOsFeatures:
+      - type: MULTI_IP_SUBNET
+      initializeParams:
+        sourceImage: "projects/se-projects-242100/global/images/fortitester1-image"
+    - deviceName: bm-aa-tester1-logdisk
+      source: $(ref.bm-aa-tester1-logdisk.selfLink)
+      type: PERSISTENT
+      autoDelete: true
+      boot: false
+    networkInterfaces:
+    - network: $(ref.bm-aa-public-vpc.selfLink)
+      subnetwork: $(ref.bm-aa-public-subnet.selfLink)
+      networkIP: 10.130.64.5
+      accessConfigs:
+      - name: External NAT
+        type: ONE_TO_ONE_NAT
+    - network: $(ref.bm-aa-test1-vpc.selfLink)
+      subnetwork: $(ref.bm-aa-test1-subnet.selfLink)
+      networkIP: 10.0.0.5
+      aliasIpRanges:
+      - ipCidrRange: 10.0.1.0/25
+        subnetworkRangeName: alias-0-1
+    - network: $(ref.bm-aa-test2-vpc.selfLink)
+      subnetwork: $(ref.bm-aa-test2-subnet.selfLink)
+      networkIP: 10.1.0.5
+      aliasIpRanges:
+      - ipCidrRange: 10.1.1.0/25
+        subnetworkRangeName: alias-1-1
+    canIpForward: Yes
+    scheduling:
+      preemptible: true
+    metadata:
+      items:
+      - key: serial-port-enable
+        value: "true"

@@ -1,0 +1,182 @@
+{% set prefix = properties.prefix|default(env.deployment) %}
+{% import "../utils/netcalc.jinja" as netcalc %}
+
+{% set fgtlist=[1,2]%}
+
+resources:
+- name: {{ prefix }}-localhub-{{ properties.region }}
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+- name: {{ prefix }}-localhub-{{ properties.region }}-subnet
+  type: compute.v1.subnetwork
+  properties:
+    region: {{ properties.region }}
+    network: $(ref.{{ prefix }}-localhub-{{ properties.region }}.selfLink)
+    ipCidrRange: 10.130.64.0/28
+- name: {{ prefix }}-globalhub
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+- name: {{ prefix }}-globalhub-{{ properties.region }}-subnet
+  type: compute.v1.subnetwork
+  properties:
+    region: {{ properties.region }}
+    network: $(ref.{{ prefix }}-globalhub.selfLink)
+    ipCidrRange: 10.130.64.128/28
+
+- name: {{ prefix }}-fgt-cloudrouter
+  type: compute.v1.router
+  properties:
+    region: {{ properties.region }}
+    network: $(ref.{{ prefix }}-globalhub.selfLink)
+    nats:
+    - name: {{ prefix }}-fgt-cloudnat
+      sourceSubnetworkIpRangesToNat: ALL_SUBNETWORKS_ALL_IP_RANGES
+      natIpAllocateOption: AUTO_ONLY
+
+{% for fgtindx in fgtlist %}
+- name: {{ prefix }}-fgt{{ loop.index }}
+  type: fgt.jinja
+  properties:
+    prefix: {{ prefix }}{{ loop.index }}
+    name: fgt
+    region: {{ properties.region }}
+    zone: {{ properties.zones[ loop.index0 ]}}
+    networks:
+      internal:
+        vpc: $(ref.{{ prefix }}-localhub-{{ properties.region }}.selfLink)
+        subnet: $(ref.{{ prefix }}-localhub-{{ properties.region }}-subnet.selfLink)
+        ipCidrRange: 10.130.64.0/28
+        networkIP: {{ netcalc.getNthIpWithMask( "10.130.64.0/28", loop.index ) }}
+      external:
+        vpc: $(ref.{{ prefix }}-globalhub.selfLink)
+        subnet: $(ref.{{ prefix }}-globalhub-{{ properties.region }}-subnet.selfLink)
+        ipCidrRange: 10.130.64.128/28
+        networkIP: {{ netcalc.getNthIpWithMask( "10.130.64.128/28", loop.index ) }}
+  {% if loop.index0>0 %}
+    routes: {{[]}}
+    createCloudFirewallRules: false
+  {% endif %}
+{% endfor %}
+
+{#}
+{% for zone in properties.zones %}
+- name: {{ prefix }}-hagroup{{ loop.index0 }}
+  type: compute.v1.instanceGroup
+  properties:
+    zone: {{ properties.zones[ loop.index0 ]}}
+- name: {{ prefix }}-hagroup{{loop.index0}}-add
+  action: gcp-types/compute-v1:compute.instanceGroups.addInstances
+  metadata:
+    runtimePolicy:
+    - CREATE
+  properties:
+    zone: {{ zone }}
+    instanceGroup: $(ref.{{ prefix }}-hagroup{{ loop.index0 }}.name)
+    instances:
+    - instance: $(ref.{{ prefix }}-fgt{{ loop.index }}.selfLink)
+- name: {{ prefix }}-hagroup{{loop.index0}}-setPort
+  action: gcp-types/compute-v1:compute.instanceGroups.setNamedPorts
+  metadata:
+    runtimePolicy:
+    - CREATE
+  properties:
+    zone: {{ zone }}
+    instanceGroup: $(ref.{{ prefix }}-hagroup{{ loop.index0 }}.name)
+    namedPorts:
+    - name: http
+      port: 80
+{% endfor %}
+
+- name: {{ prefix }}-http8008-probe
+  type: compute.v1.healthCheck
+  properties:
+    type: HTTP
+    httpHealthCheck:
+      port: 8008
+      checkIntervalSec: 5
+      timeoutSec: 3
+      unhealthyThreshold: 2
+      healthyThreshold: 1
+- name: {{ prefix }}-http8009-probe
+  type: compute.v1.healthCheck
+  properties:
+    type: HTTP
+    httpHealthCheck:
+      port: 8009
+      checkIntervalSec: 5
+      timeoutSec: 3
+      unhealthyThreshold: 2
+      healthyThreshold: 1
+
+
+- name: {{ prefix }}-ilbint-bes
+  type: compute.v1.regionBackendService
+  properties:
+    region: {{ properties.region }}
+    loadBalancingScheme: INTERNAL
+    network: {{ prefix }}-localhub-{{ properties.region }}
+    protocol: TCP
+    healthChecks:
+    - $(ref.{{ prefix }}-http8008-probe.selfLink)
+    backends:
+    - group: $(ref.{{ prefix }}-hagroup0.selfLink)
+    - group: $(ref.{{ prefix }}-hagroup1.selfLink)
+
+- name: {{ prefix }}-ilbint-route-fwdrule
+  type: compute.v1.forwardingRule
+  properties:
+    region: {{ properties.region }}
+    loadBalancingScheme: INTERNAL
+    IPAddress: {{ netcalc.getNthIp( "10.130.64.0/28", 5 )}}
+    IPProtocol: TCP
+    allPorts: true
+    backendService: $(ref.{{ prefix }}-ilb-bes.selfLink)
+    network: {{ prefix }}-localhub-{{ properties.region }}
+    subnetwork: {{ prefix }}-localhub-{{ properties.region }}-subnet
+
+
+- name: {{ prefix }}-ilbext-bes
+  type: compute.v1.regionBackendService
+  properties:
+    region: {{ properties.region }}
+    loadBalancingScheme: INTERNAL
+    network: {{ prefix }}-localhub-{{ properties.region }}
+    protocol: TCP
+    healthChecks:
+    - $(ref.{{ prefix }}-http8009-probe.selfLink)
+    backends:
+    - group: $(ref.{{ prefix }}-hagroup0.selfLink)
+    - group: $(ref.{{ prefix }}-hagroup1.selfLink)
+
+- name: {{ prefix }}-ilbext-route-fwdrule
+  type: compute.v1.forwardingRule
+  properties:
+    region: {{ properties.region }}
+    loadBalancingScheme: INTERNAL
+    IPAddress: {{ netcalc.getNthIp( "10.130.64.128/28", 5 )}}
+    IPProtocol: TCP
+    allPorts: true
+    backendService: $(ref.{{ prefix }}-ilbext-bes.selfLink)
+    network: {{ prefix }}-localhub-{{ properties.region }}
+    subnetwork: {{ prefix }}-localhub-{{ properties.region }}-subnet
+
+
+
+{% for route in properties.routes %}
+{% if "name" in route %}
+- name: {{ prefix }}-{{ route.name }}
+{% else %}
+- name: {{ prefix }}-ilb-route-{{ loop.index0 }}
+{% endif %}
+  type: compute.v1.route
+  properties:
+    destRange: {{ route.destRange }}
+    {% if "priority" in route %}
+    priority: {{ route.priority }}
+    {% endif %}
+    network: {{ prefix }}-localhub-{{ properties.region }}
+    nextHopIlb: $(ref.{{ prefix }}-ilb-route-fwdrule.selfLink )
+{% endfor %}
+{#}

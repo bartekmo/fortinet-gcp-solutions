@@ -1,0 +1,91 @@
+{% set prefix="bm-lotsofaliases" %}
+{% set zone="europe-west1-b" %}
+{% set region="europe-west1" %}
+{% set firmwareImage="https://www.googleapis.com/compute/v1/projects/fortigcp-project-001/global/images/fortinet-fgtondemand-642-20200810-001-w-license" %}
+
+{# MAXIMUM OF 10 ALIASES ARE ALLOWED PER VM #}
+
+
+resources:
+- name: {{ prefix }}-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+- name: {{ prefix }}-subnet
+  type: compute.v1.subnetwork
+  properties:
+    network: $(ref.{{prefix}}-vpc.selfLink)
+    region: {{ region }}
+    ipCidrRange: 10.0.0.0/28
+    secondaryIpRanges:
+    {% for i in range(10) %}
+    - rangeName: sub{{i*8}}
+      ipCidrRange: 192.168.0.{{i*8}}/29
+    {% endfor %}
+- name: {{ prefix }}-fgt
+  type: compute.v1.instance
+  properties:
+    zone: {{ zone }}
+    machineType: zones/{{ zone }}/machineTypes/e2-standard-2
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      guestOsFeatures:
+      - type: MULTI_IP_SUBNET
+      licenses:
+      - https://www.googleapis.com/compute/v1/projects/fortigcp-project-001/global/licenses/fortigate
+      initializeParams:
+        sourceImage: {{ firmwareImage }}
+        diskSizeGb: 10.0
+    networkInterfaces:
+    - network: $(ref.{{ prefix }}-vpc.selfLink)
+      subnetwork: $(ref.{{ prefix }}-subnet.selfLink)
+      accessConfigs:
+      - name: External NAT
+        type: ONE_TO_ONE_NAT
+      aliasIpRanges:
+      {% for i in range(10) %}
+      - name: sub{{i*8}}
+        ipCidrRange: 192.168.0.{{i*8}}/29
+      {% endfor %}
+    canIpForward: Yes
+    metadata:
+      items:
+      - key: serial-port-enable
+        value: true
+      - key: user-data
+        value: |
+          config system global
+            set hostname "{{ prefix }}-fgt"
+          end
+    tags:
+      items:
+       - fortigate
+
+
+{% for i in range(10) %}
+- name: {{ prefix }}-pip{{i}}
+  type: compute.v1.address
+  properties:
+    region: {{ region }}
+{% endfor %}
+
+- name: {{ prefix }}-nat
+  type: compute.v1.router
+  properties:
+    region: {{ region }}
+    network: {{ prefix }}-vpc
+    nats:
+    {% for i in range(10)%}
+    - sourceNetworksIpRangesToNat: [LIST_OF_SUBNETWORKS]
+      subnetworks:
+      - name: {{ prefix }}-subnet
+        sourceIpRangesToNat: [LIST_OF_SECONDARY_IP_RANGES]
+        secondaryIpRangeNames:
+        - s{{i*8}}
+      natIpAllocationOption: MANUAL_ONLY
+      natIps:
+      - $(ref.{{ prefix }}-pip{{i}}.selfLink)
+    {% endfor %}

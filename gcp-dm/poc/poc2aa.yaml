@@ -1,0 +1,34 @@
+imports:
+- path: poc2aa.jinja
+- path: ../fortigate/fgsp-aa-multilb.jinja
+  name: fgsp-aa-multilb.jinja
+- path: ../../../../../secrets/FG-VM04_24757586/FGVM04TM20001661.lic
+  name: license1.lic
+- path: ../../../../../secrets/FG-VM04_24757586/FGVM04TM20001662.lic
+  name: license2.lic
+
+
+resources:
+- name: Nokia PoC
+  type: poc2aa.jinja
+  properties:
+    region: europe-west1
+    license:
+      type: byol
+      lics:
+      - license1.lic
+      - license2.lic
+    networks:
+    - name: internet
+      ipCidrRange: 10.130.64.0/28
+      public: true
+    - name: ic
+      description: interconnect
+      ipCidrRange: 10.130.64.16/28
+    - name: datasync
+      description: datasync and management
+      ipCidrRange: 10.130.64.32/28
+      allowaccess: ping https ssh
+    - name: zone-low
+      description: protected zone
+      ipCidrRange: 10.130.64.128/28

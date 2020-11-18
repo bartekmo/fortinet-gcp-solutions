@@ -1,0 +1,21 @@
+imports:
+- path: poc5.jinja
+
+resources:
+- name: poc5
+  type: poc5.jinja
+  properties:
+  nets:
+  - name: internet
+    cidr: 10.0.0.0/24
+  - name: transit
+    cidr: 10.0.1.0/24
+  - name: datasync
+    cidr: 172.17.0.0/24
+  - name: zonelow
+    cidr: 10.10.0.0/24
+  - name: zonemid
+    cidr: 10.10.1.0/24
+  - name: zonehigh
+    cidr: 10.10.2.0/24
+    

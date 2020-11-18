@@ -1,0 +1,62 @@
+# This example Deployment Manager configuration file demonstraces deployment
+# of a Fortigate with multiple external IP addresses.
+# It will create two VPC networks with subnets and deploy a Fortigate with
+# two IP addresses attached using protocol forwarding.
+
+imports:
+- path: ../fgtvm.jinja
+  name: fgtvm.jinja
+
+resources:
+# first, let's prepare two networks...
+- name: bmtest-external-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+- name: bmtest-protected-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+# ...and some subnets
+- name: external-uswest1
+  type: compute.v1.subnetwork
+  properties:
+    region: us-west1
+    network: $(ref.bmtest-external-vpc.selfLink)
+    ipCidrRange: 172.17.1.0/24
+- name: protected-uswest1
+  type: compute.v1.subnetwork
+  properties:
+    region: us-west1
+    network: $(ref.bmtest-protected-vpc.selfLink)
+    ipCidrRange: 172.17.0.0/24
+
+# Now it's time to deploy the firewall. The only obligatory properties is zone
+# (region is calculated automatically) and the networks.
+# externalIP property in the first network is optional, but omitting it requires
+# internal connectivity for management.
+
+# additionalExternalIPs can be used for forwarding connections to additional
+# services. IP pools and address objects are auto-created by template, but
+# VIPs and firewall rules have to be configured after deployment manually.
+
+- name: My_Fortigate
+  type: fgtvm.jinja
+  properties:
+    zone: us-west1-b
+    networks:
+    - vpcLink: $(ref.bmtest-external-vpc.selfLink)
+      subnetLink: $(ref.external-uswest1.selfLink)
+      externalIP:
+        name: fgt-mgmt
+      additionalExternalIPs:
+      - name: eip1
+      - name: eip2
+      - name: eip3
+    - vpcLink: $(ref.bmtest-protected-vpc.selfLink)
+      subnetLink: $(ref.protected-uswest1.selfLink)
+
+# To make our lives easier, let's pass public IP and default password from template outputs
+outputs:
+- name: My_Fortigate
+  value: $(ref.My_Fortigate)
