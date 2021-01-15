@@ -1,0 +1,82 @@
+# This example Deployment Manager configuration file demonstrates deployment
+# of a Fortigate Active-Active FGSP cluster with multiple external IP addresses.
+
+imports:
+- path: ../fgsp-aa-multilb.jinja
+  name: fgsp-aa-multilb.jinja
+
+resources:
+# first, let's prepare two networks...
+- name: bmtest-external-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+- name: bmtest-protected-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+# and third for the data synchronization
+- name: bmtest-datasync-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+# ...and some subnets
+- name: external-uswest1
+  type: compute.v1.subnetwork
+  properties:
+    region: us-west1
+    network: $(ref.bmtest-external-vpc.selfLink)
+    ipCidrRange: 172.17.1.0/24
+- name: protected-uswest1
+  type: compute.v1.subnetwork
+  properties:
+    region: us-west1
+    network: $(ref.bmtest-protected-vpc.selfLink)
+    ipCidrRange: 172.17.0.0/24
+- name: datasync-uswest1
+  type: compute.v1.subnetwork
+  properties:
+    region: us-west1
+    network: $(ref.bmtest-datasync-vpc.selfLink)
+    ipCidrRange: 172.17.10.0/24
+# Now it's time to deploy the firewall. The only obligatory properties is zone
+# (region is calculated automatically) and the networks.
+# externalIP property in the first network is optional, but omitting it requires
+# internal connectivity for management.
+
+# additionalExternalIPs can be used for forwarding connections to additional
+# services. IP pools and address objects are auto-created by template, but
+# VIPs and firewall rules have to be configured after deployment manually.
+
+- name: My_Fortigate_Cluster
+  type: fgsp-aa-multilb.jinja
+  properties:
+    zones:
+    - us-west1-b
+    - us-west1-c
+    license:
+      type: byol
+    networks:
+    - name: external
+      vpcLink: $(ref.bmtest-external-vpc.selfLink)
+      subnetLink: $(ref.external-uswest1.selfLink)
+      ipCidrRange: 172.17.1.0/24
+      public: true
+      serviceIPs:
+      - name: app1
+      - name: app2
+      externalIP:
+        name: fgt-mgmt
+    - name: protected
+      vpcLink: $(ref.bmtest-protected-vpc.selfLink)
+      subnetLink: $(ref.protected-uswest1.selfLink)
+      ipCidrRange: 172.17.0.0/24
+    - name: datasync
+      vpcLink: $(ref.bmtest-datasync-vpc.selfLink)
+      subnetLink: $(ref.datasync-uswest1.selfLink)
+      ipCidrRange: 172.17.10.0/24
+
+# To make our lives easier, let's pass public IP and default password from template outputs
+outputs:
+- name: template_output
+  value: $(ref.My_Fortigate_Cluster)
