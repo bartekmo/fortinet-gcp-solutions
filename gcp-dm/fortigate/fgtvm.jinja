@@ -102,7 +102,7 @@ resources:
       {%- endif %}
       {%- if "externalIP" in nic %}
       accessConfigs:
-      - name: {{ nic.externalIP.name }}
+      - name: {{prefix}}-{{ nic.externalIP.name }}
         type: ONE_TO_ONE_NAT
         {%- if nic.externalIP.address is defined %}
         natIP: {{ nic.externalIP.address }}
@@ -214,6 +214,7 @@ resources:
     - IPProtocol: all
 {% endfor %}
 {% endif %}
+{# TODO: fix hard coded [1] index below. should be "for all internal networks"? #}
 {% for route in properties.routes %}
 - name: {{ prefix }}-{{ route.name | default( "route"~loop.index~"-via-fgt" ) }}
 {# NOTE: route naming scheme referred in ha-ap.jinja line 171 #}
