@@ -1,11 +1,11 @@
 info:
   title: Fortigate ELB/ILB HA Active-Passive cluster
   description: Fortigate High Availability Active-Passive cluster in ELB/ILB sandwich
-  version: 0.9
+  version: 1.0
 
 imports:
-- path: ../utils/netcalc.jinja
-- path: ha-ap.jinja
+- path: ../../utils/netcalc.jinja
+- path: fgcp-ha-ap-sdn.jinja
 
 required:
 - zones

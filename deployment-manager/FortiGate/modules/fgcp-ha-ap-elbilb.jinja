@@ -1,5 +1,5 @@
 {% set prefix = properties.prefix|default(env.deployment) %}
-{% import "../utils/netcalc.jinja" as netcalc %}
+{% import "../../utils/netcalc.jinja" as netcalc %}
 
 resources:
 
@@ -14,7 +14,7 @@ resources:
 {% endfor %}
 
 - name: Fortigate_Cluster_Basic
-  type: ha-ap.jinja
+  type: fgcp-ha-ap-sdn.jinja
   properties:
     prefix: {{ prefix }}
     region: {{ properties.region }}

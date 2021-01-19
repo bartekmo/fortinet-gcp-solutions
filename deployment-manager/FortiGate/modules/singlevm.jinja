@@ -6,8 +6,8 @@
 
 {% set externalIpName="ext-ip" %}
 
-{% import "../utils/netcalc.jinja" as netcalc %}
-{% import "../utils/images.jinja" as images %}
+{% import "../../utils/netcalc.jinja" as netcalc %}
+{% import "../../utils/images.jinja" as images %}
 
 {% set firmwareImage=images.getFgtImage( properties.version, properties.license.type ) %}
 

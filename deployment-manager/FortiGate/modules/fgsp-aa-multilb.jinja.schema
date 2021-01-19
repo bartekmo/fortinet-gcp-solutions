@@ -1,12 +1,12 @@
 info:
-  title: A-A Fortigate cluster
-  description: "Active Active FGSP cluster of 2 Fortigates with asymmetric UTM scanning support"
+  title: FGSP A-A Fortigate cluster with Load Balancers
+  description: "Active Active FGSP cluster of 2 Fortigates with asymmetric UTM scanning support and variable number of interfaces."
   version: 0.1
 
 imports:
-- path: ../utils/netcalc.jinja
-- path: ../fortigate/fgtvm.jinja
-  name: fgtvm.jinja
+- path: ../../utils/netcalc.jinja
+- path: singlevm2.jinja
+  name: singlevm2.jinja
 
 
 properties:

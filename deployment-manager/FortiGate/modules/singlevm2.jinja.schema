@@ -1,11 +1,11 @@
 info:
   title: Single Fortigate VM
-  description: Advanced GCP Deployment Manager template for deploying a single FortiGate appliance in Google Cloud Compute.
+  description: Advanced GCP Deployment Manager template for deploying a single FortiGate appliance in Google Compute Engine.
   version: 2.0
 
 imports:
-- path: ../utils/netcalc.jinja
-- path: ../utils/images.jinja
+- path: ../../utils/netcalc.jinja
+- path: ../../utils/images.jinja
 
 required:
 - zone

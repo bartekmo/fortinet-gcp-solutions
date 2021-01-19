@@ -1,9 +1,9 @@
 info:
   title: Fortigate High Availability Active-Passive cluster with floating external IP and route
-  version: 0.9
+  version: 1.0
 
 imports:
-- path: ../utils/netcalc.jinja
+- path: ../../utils/netcalc.jinja
 - path: singlevm.jinja
 
 required:

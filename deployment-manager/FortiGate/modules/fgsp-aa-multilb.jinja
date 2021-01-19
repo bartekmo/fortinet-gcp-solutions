@@ -1,5 +1,5 @@
 {% set prefix = properties.prefix|default(env.deployment) %}
-{% import "../utils/netcalc.jinja" as netcalc %}
+{% import "../../utils/netcalc.jinja" as netcalc %}
 
 {% set region=properties.zones[0].split('-')[0]~'-'~properties.zones[0].split('-')[1] %}
 {% set reservedInterfaces=[3] %}
@@ -8,7 +8,7 @@ resources:
 {% for vm in ["Primary", "Secondary"] %}
 {% set vmLoop=loop %}
 - name: Fortigate_{{vm}}
-  type: fgtvm.jinja
+  type: singlevm2.jinja
   properties:
     prefix: {{ prefix }}
     name: fgt{{ loop.index }}
