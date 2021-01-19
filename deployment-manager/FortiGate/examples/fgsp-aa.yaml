@@ -2,7 +2,7 @@
 # of a Fortigate Active-Active FGSP cluster with multiple external IP addresses.
 
 imports:
-- path: ../fgsp-aa-multilb.jinja
+- path: ../modules/fgsp-aa-multilb.jinja
   name: fgsp-aa-multilb.jinja
 
 resources:

@@ -69,6 +69,7 @@ properties:
           description: Setting public to true will change the Load Balancer type for this network to External network load balancer (vs. internal load balancer).
         externalIP:
           type: object
+          description: This external IP will be created by the template and bound directly to the network interface of Fortigate VM. Usually not needed.
           properties:
             name:
               type: string
@@ -76,6 +77,8 @@ properties:
               type: string
         serviceIPs:
           type: array
+          description: These external IP addresses will be created by the template and assigned as frontends to the external Network Load Balancer. They will be also added to Fortigate configuration for probe-reponse and outbound pools.
+          maxItems: 32
           items:
             type: object
             required:
