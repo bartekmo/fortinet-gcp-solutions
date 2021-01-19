@@ -1,5 +1,24 @@
 # Active-Passive HA Fortigate cluster in LB Sandwich
-This template deploys 2 Fortigate instances in an Active-Passive HA cluster between two load balancers ("load balancer sandwich" pattern). LB Sandwich design enables use of multiple public IPs and provides faster, configurable failover times. HA multi-zone deployments provide 99.99% Compute Engine SLA.
+This template deploys 2 Fortigate instances in an Active-Passive HA cluster between two load balancers ("load balancer sandwich" pattern). LB Sandwich design enables use of multiple public IPs and provides faster, configurable failover times when compared to SDN-connector based. Due to Google Cloud Load Balancer limitations only UDP and TCP traffic is supported and tag-based GCP routes cannot be configured with ILB as next hop.
+
+HA multi-zone deployments provide 99.99% Compute Engine SLA vs. 99.5-99.9% for single instances. See [Google Compute Engine SLA](https://cloud.google.com/compute/sla) for details.
+
+Template file: [modules/fgcp-ha-ap-elbilb.jinja](../modules/fgcp-ha-ap-elbilb.jinja)
+Schema file: [modules/fgcp-ha-ap-elbilb.jinja.schema](../modules/fgcp-ha-ap-elbilb.jinja.schema)
+
+## Active-Passive HA Design Options Comparison
+Fortinet recommends two base building blocks when designing GCP network with an Active-Passive Fortigate cluster:
+1. [A-P HA with SDN Connector](fgcp-ha-ap-sdn.md)
+2. [A-P HA in LB Sandwich](fgcp-ha-ap-elbilb.md)
+
+Make sure you understand differences between them and choose your architecture properly. Also remember that templates and designs provided here are the base building blocks and you can modify or mix them to match your individual use case.
+
+| Feature | with SDN Connector | in LB Sandwich |
+| --------|--------------------|----------------|
+| Failover time | >40 secs | ~10 secs |
+| Protocols supported | UDP, TCP, ICMP, ESP, AH, SCTP | UDP, TCP |
+| Max. external addresses | 1 (per external NIC) | unlimited |
+| Tag-based internal GCP routes| supported | not supported |
 
 ## Diagram
 As unicast FGCP clustering of FortiGate instances requires dedicated heartbeat and management NICs, 2 additional VPC Networks need to be created (or indicated in configuration file). This design features 4 separate VPCs for external, internal, heartbeat and management NICs. Both instances are deployed in separate zones indicated in **zones** property to enable GCP 99.99% SLA.
@@ -28,15 +47,15 @@ Additional resources deployed include:
 - Cloud NAT
 
 ## Prerequisites and Requirements
-You must create the external and protected VPC networks before using this template.
+You MUST create the external and protected VPC networks and subnets before using this template. External and protected subnets MUST be in the same region where VMs are deployed.
 
-All VPC Networks already created before deployment and provided to the template using `networks.*.vpc` and `networks.*.subnet` properties, they SHOULD have first 2 IP addresses available for Fortigate use. Addresses are assigned statically and it's the responsibility of administrator to make sure they do not overlap.
+All VPC Networks already created before deployment and provided to the template using `networks.*.vpc` and `networks.*.subnet` properties, SHOULD have first 2 IP addresses available for Fortigate use. Addresses are assigned statically and it's the responsibility of administrator to make sure they do not overlap.
 
 ## Dependencies
-This template uses [singlevm.jinja](singlevm.md) template and helpers in utils directory.
+This template uses [fgcp-ha-ap-sdn.jinja](fgcp-ha-ap-sdn.md) template and helpers in utils directory.
 
 ## How to deploy
-For detailed instructions on how to deploy as well as list of available properties, check this [README](./README.md)
+For detailed instructions on how to deploy as well as list of available properties, check this [README](../README.md)
 
 ## See also
-[Other Fortigate deployments](./README.md)
+[Other Fortigate designs](../README.md)

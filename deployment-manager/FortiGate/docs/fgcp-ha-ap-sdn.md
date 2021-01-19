@@ -1,7 +1,26 @@
-# Active-Passive HA FortiGate Pair with Fabric Connector Failover
-This template can be used to deploy an Active-Passive HA cluster of 2 Fortigate instances together with the required cloud resources. The cluster is preconfigured with the FGCP configuration synchronization, GCP Fabric Connector, and proper HA configuration for external IP and route failover.
+# Active-Passive HA FortiGate Pair with Fabric (SDN) Connector Failover
+This template deploys an Active-Passive HA cluster of 2 Fortigate instances together with the required cloud resources. The cluster is preconfigured with the FGCP configuration synchronization, GCP Fabric Connector, and proper HA configuration for external IP and route failover.
+
+HA multi-zone deployments provide 99.99% Compute Engine SLA vs. 99.5-99.9% for single instances. See [Google Compute Engine SLA](https://cloud.google.com/compute/sla) for details.
 
 This architecture is suitable for deployments where only a single Public IP is required.
+
+Template file: [modules/fgcp-ha-ap-sdn.jinja](../modules/fgcp-ha-ap-sdn.jinja)
+Schema file: [modules/fgcp-ha-ap-sdn.jinja.schema](../modules/fgcp-ha-ap-sdn.jinja.schema)
+
+## Active-Passive HA Design Options Comparison
+Fortinet recommends two base building blocks when designing GCP network with an Active-Passive Fortigate cluster:
+1. [A-P HA with SDN Connector](fgcp-ha-ap-sdn.md)
+2. [A-P HA in LB Sandwich](fgcp-ha-ap-elbilb.md)
+
+Make sure you understand differences between them and choose your architecture properly. Also remember that templates and designs provided here are the base building blocks and you can modify or mix them to match your individual use case.
+
+| Feature | with SDN Connector | in LB Sandwich |
+| --------|--------------------|----------------|
+| Failover time | >40 secs | ~10 secs |
+| Protocols supported | UDP, TCP, ICMP, ESP, AH, SCTP | UDP, TCP |
+| Max. external addresses | 1 (per external NIC) | unlimited |
+| Tag-based internal GCP routes| supported | not supported |
 
 ## Design
 As unicast FGCP clustering of FortiGate instances requires dedicated heartbeat and management NICs, 2 additional VPC Networks need to be created (or indicated in configuration file). This design features 4 separate VPCs for external, internal, heartbeat and management NICs. Both instances are deployed in separate zones indicated in **zones** property to enable GCP 99.99% SLA.
@@ -26,9 +45,9 @@ Deployed Fortigates integrate with GCP fabric using an SDN Connector. Upon failo
 This template uses [singlevm.jinja](singlevm.md) template and helpers in utils directory.
 
 ## How to deploy
-See [README](README.md) for details on how to deploy this template and on available parameters.
+See [README](../README.md) for details on how to deploy this template and on available parameters.
 
-See [ha-ap-sdn.yaml](examples/ha-ap-sdn.yaml) in [examples](examples) directory for a basic configuration file to start with.
+See [ha-ap-sdn.yaml](../examples/ha-ap-sdn.yaml) in [examples](../examples) directory for a basic configuration file to start with.
 
 ## Post-deployment Steps
 After your firewalls are deployed, connect to the primary instance and change the default password. The initial password is set to the primary instance ID.
