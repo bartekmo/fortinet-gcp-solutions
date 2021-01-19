@@ -1,5 +1,6 @@
 info:
   title: Single Fortigate VM
+  description: Advanced GCP Deployment Manager template for deploying a single FortiGate appliance in Google Cloud Compute.
   version: 2.0
 
 imports:
