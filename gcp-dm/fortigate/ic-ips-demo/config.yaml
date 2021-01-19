@@ -1,0 +1,38 @@
+
+imports:
+- name: fortigate-security-hub.jinja
+  path: ../hub/fortigate-security-hub.jinja
+- name: fortigate.jinja
+  path: ../fgsp-aa-multiilb.jinja
+- name: ic_emulator.jinja
+  path: ic_emulator.jinja
+
+resources:
+#- type: fortigate-security-hub.jinja
+#  name: SecurityHub
+#  properties:
+#    region: europe-west1
+#    zones:
+#    - europe-west1-d
+#    - europe-west1-c
+#    hubNetworks:
+#      internal:
+#        name: hub-interconnect
+#        ipCidrRange: 172.16.16.0/26
+#      external:
+#        name: hub-protected
+#        ipCidrRange: 172.16.16.64/26
+#    spokeNetworks:
+#    - name: secure-spoke1
+#      ipCidrRange: 10.10.1.0/24
+#    - name: secure-spoke2
+#      ipCidrRange: 10.10.2.0/24
+- type: ic_emulator.jinja
+  name: InterconnectEmulator
+  properties:
+    region: europe-west1
+    siteIpCidrRange: 192.168.1.0/24
+    hubVpcLink: projects/se-projects-242100/global/networks/bm-hubtest
+    advertisedIpRanges:
+    - range: 172.16.16.0/24
+      description: Demo range

@@ -1,0 +1,27 @@
+info:
+  title: Interconnect Emulator
+  description: Deploys an "on-site" VPC Network and subnet, along with a pair of routers, VPN gateways, and tunnels emulating interconnect-like communication with remote network with BGP routing. Can be used in PoC and demo environments.
+  version: 1.0
+
+properties:
+  region:
+    description: Region to deploy to. Both VPN gateways will be deployed into this region.
+    type: string
+  hubVpcLink:
+    description: URL of the "hub" VPC to connect to.
+    type: string
+  siteIpCidrRange:
+    description: IP range for the newly created "on site" network.
+    type: string
+  advertisedIpRanges:
+    description: Ranges passed to the "hub" router as custom BGP advertisements. It should contain all subnets behind Fortigates and will be passed verbatim as router.bgp.advertisedIpRanges
+    type: array
+    items:
+      type: object
+      properties:
+        range:
+          type: string
+          description: The IP range to advertise. The value must be a CIDR-formatted string.
+        description:
+          type: string
+          description: User-specified description for the IP range.

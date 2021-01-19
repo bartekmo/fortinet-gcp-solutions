@@ -1,0 +1,109 @@
+# IC emulation template
+#
+# This template emulates Interconnect using a VPN link and Cloud Router.
+
+{% set prefix = properties.prefix | default( env.deployment )%}
+{% set vpnSharedSecret="asuydfbhjakmsdnf" %}
+
+{% set siteVpcName = prefix+"site-vpc" %}
+{% set siteSubnetName = prefix+"site-vpc-subnet" %}
+
+resources:
+- name: {{ siteVpcName }}
+  type: gcp-types/compute-v1:networks
+  properties:
+    autoCreateSubnetworks: no
+- name: {{ siteSubnetName }}
+  type: gcp-types/compute-v1:subnetworks
+  properties:
+    region: {{ properties.region }}
+    ipCidrRange: {{ properties.siteIpCidrRange }}
+    network: $(ref.{{ siteVpcName }}.selfLink)
+
+{% for site in [ "hub", "site" ] %}
+- name: {{ prefix }}-{{ site }}-vpn-gw
+  type: gcp-types/compute-v1:vpnGateways
+  properties:
+    {% if "site"==site %}
+    network: $(ref.{{ siteVpcName }}.selfLink)
+    {% else %}
+    network: {{ properties.hubVpcLink }}
+    {% endif %}
+    region: {{ properties.region }}
+    {#}
+- name: {{ prefix }}-{{ site }}-vpn-ip
+  type: gcp-types/compute-v1:addresses
+  properties:
+    region: {{ properties.region }}
+- name: {{ prefix }}-{{ site }}-fwd-esp
+  type: gcp-types/compute-v1:forwardingRules
+  properties:
+    IPProtocol: ESP
+    IPAddress: $(ref.{{ prefix }}-{{ site }}-vpn-ip.address)
+    region: {{ properties.region }}
+    target: $(ref.{{ prefix }}-{{ site }}-vpn-gw.selfLink)
+- name: {{ prefix }}-{{ site }}-fwd-udp500
+  type: gcp-types/compute-v1:forwardingRules
+  properties:
+    IPProtocol: UDP
+    IPAddress: $(ref.{{ prefix }}-{{ site }}-vpn-ip.address)
+    portRange: 500
+    region: {{ properties.region }}
+    target: $(ref.{{ prefix }}-{{ site }}-vpn-gw.selfLink)
+- name: {{ prefix }}-{{ site }}-fwd-udp4500
+  type: gcp-types/compute-v1:forwardingRules
+  properties:
+    IPProtocol: UDP
+    IPAddress: $(ref.{{ prefix }}-{{ site }}-vpn-ip.address)
+    portRange: 4500
+    region: {{ properties.region }}
+    target: $(ref.{{ prefix }}-{{ site }}-vpn-gw.selfLink)
+{#}
+- name: {{ prefix }}-{{ site }}-router
+  type: gcp-types/compute-v1:routers
+  properties:
+    region: {{ properties.region }}
+    {% if "site"==site %}
+    network: $(ref.{{ siteVpcName }}.selfLink)
+    {% else %}
+    network: {{ properties.hubVpcLink }}
+    {% endif %}
+- name: {{ prefix }}-{{ site }}-tunnel
+  type: gcp-types/compute-v1:vpnTunnels
+  properties:
+    ikeVersion: 2
+    {% if "site"==site %}
+    peerGcpGateway: $(ref.{{ prefix }}-hub-vpn-gw.selfLink)
+    {% else %}
+    peerGcpGateway: $(ref.{{ prefix }}-site-vpn-gw.selfLink)
+    {% endif %}
+    region: {{ properties.region }}
+    router: $(ref.{{ prefix }}-{{ site }}-router.selfLink)
+    sharedSecret: {{ vpnSharedSecret }}
+    vpnGateway: $(ref.{{ prefix }}-{{ site }}-vpn-gw.selfLink)
+    vpnGatewayInterface: 0
+
+- name: {{ prefix }}-{{ site }}-bgp-link
+  action: gcp-types/compute-v1:compute.routers.patch
+  properties:
+    router: {{ prefix }}-{{ site }}-router
+    region: {{ properties.region }}
+    bgp:
+      advertiseMode: CUSTOM
+      advertisedIpRanges: {{ properties.advertisedIpRanges }}
+      asn: 6510{{loop.index0}}
+    interfaces:
+    - name: {{ prefix }}-{{ site }}-vpn-if-0
+      linkedVpnTunnel: $(ref.{{ prefix }}-{{ site }}-tunnel.selfLink)
+      ipRange: 169.254.0.{{ loop.index }}/30
+    bgpPeers:
+    - name: {{ prefix }}-{{ site }}-bgp
+      interfaceName: {{ prefix }}-{{ site }}-vpn-if-0
+      ipAddress: 169.254.0.{{ loop.index }}
+      peerIpAddress: 169.254.0.{{ (loop.index0+1)%2 +1 }}
+      peerAsn: 6510{{ (loop.index0+1)%2 }}
+  metadata:
+    runtimePolicy:
+    - CREATE
+
+{% endfor %}
