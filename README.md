@@ -4,9 +4,9 @@ Check [here](https://github.com/fortinet/) for official repositories.
 
 ## Contents
 GCP Deployment Manager templates:
-* [Security Services Hub](gcp-dm/hub)
-* [Fortigate Active-Passive cluster](gcp-dm/fortigate/ha-ap.md)
-* [Fortigate Active-Passive cluster in LB Sandwich](gcp-dm/fortigate/ha-ap-elbilb.md)
+* [Security Services Hub](deployment-manager/FortiGate/hub)
+* [Fortigate Active-Passive cluster](deployment-manager/FortiGate/docs/fgcp-ha-ap-sdn.md)
+* [Fortigate Active-Passive cluster in LB Sandwich](deployment-manager/FortiGate/fgcp-ha-ap-elbilb.md)
 
 ### Other templates (Fortinet repository)
 * [Fortigate Auto-Scaling Cluster](https://github.com/fortinet/fortigate-autoscale-gcp)
