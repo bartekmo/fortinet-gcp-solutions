@@ -1,13 +1,18 @@
-# Active-Passive HA Fortigate cluster in LB Sandwich
-This template deploys 2 Fortigate instances in an Active-Passive HA cluster between two load balancers ("load balancer sandwich" pattern). LB Sandwich design enables use of multiple public IPs and provides faster, configurable failover times when compared to SDN-connector based. Due to Google Cloud Load Balancer limitations only UDP and TCP traffic is supported and tag-based GCP routes cannot be configured with ILB as next hop.
+# Active-Passive HA FortiGate cluster in LB Sandwich
+This template deploys 2 FortiGate instances in an Active-Passive HA cluster between two load balancers ("load balancer sandwich" pattern). LB Sandwich design enables use of multiple public IPs and provides faster, configurable failover times when compared to SDN-connector based. Due to Google Cloud Load Balancer limitations only UDP and TCP traffic is supported and tag-based GCP routes cannot be configured with ILB as next hop.
 
 HA multi-zone deployments provide 99.99% Compute Engine SLA vs. 99.5-99.9% for single instances. See [Google Compute Engine SLA](https://cloud.google.com/compute/sla) for details.
 
 Template file: [modules/fgcp-ha-ap-elbilb.jinja](../modules/fgcp-ha-ap-elbilb.jinja)
 Schema file: [modules/fgcp-ha-ap-elbilb.jinja.schema](../modules/fgcp-ha-ap-elbilb.jinja.schema)
 
+## Overview
+FGCP protocol natively does not work in L3 overlay networks. For cloud deployments it must be configured to use unicast communication, which slightly limits its functionality (e.g. only Active-Passive between 2 peers is possible) and enforces use of dedicated management interface. In this template port3 is used as heartbeat and FGCP sync interface and port4 is used as dedicated management interface.
+
+As cloud networks do not allow any network mechanisms below IP layer (e.g. gratuitous arp) usually used in HA scenarios, this template adds a pair of load balancers and configures health probes to detect currently active instance. Passive peer will be detected as unhealthy by the load balancers and will not receive any traffic. External load balancer is configured to forward all UDP and all TCP ports, while internal load balancer is used as a next hop in the custom route (note that despite using a single port in the ILB, it will route all UDP and TCP traffic).
+
 ## Active-Passive HA Design Options Comparison
-Fortinet recommends two base building blocks when designing GCP network with an Active-Passive Fortigate cluster:
+Fortinet recommends two base building blocks when designing GCP network with an Active-Passive FortiGate cluster:
 1. [A-P HA with SDN Connector](fgcp-ha-ap-sdn.md)
 2. [A-P HA in LB Sandwich](fgcp-ha-ap-elbilb.md)
 
@@ -31,7 +36,7 @@ Additional resources deployed include:
 ![ELBILB Sandwich diagram](https://app.lucidchart.com/publicSegments/view/b1ee079a-3c64-4e75-acb7-a42e3b6f8982/image.png)
 
 ## Deployed Resources
-- 2 Fortigate VM instances with 4 NICs each
+- 2 FortiGate VM instances with 4 NICs each
 - 2 VPC Networks: heartbeat and management (unless provided)
 - External Load Balancer
     - External addresses
@@ -49,7 +54,7 @@ Additional resources deployed include:
 ## Prerequisites and Requirements
 You MUST create the external and protected VPC networks and subnets before using this template. External and protected subnets MUST be in the same region where VMs are deployed.
 
-All VPC Networks already created before deployment and provided to the template using `networks.*.vpc` and `networks.*.subnet` properties, SHOULD have first 2 IP addresses available for Fortigate use. Addresses are assigned statically and it's the responsibility of administrator to make sure they do not overlap.
+All VPC Networks already created before deployment and provided to the template using `networks.*.vpc` and `networks.*.subnet` properties, SHOULD have first 2 IP addresses available for FortiGate use. Addresses are assigned statically and it's the responsibility of administrator to make sure they do not overlap.
 
 ## Dependencies
 This template uses [fgcp-ha-ap-sdn.jinja](fgcp-ha-ap-sdn.md) template and helpers in utils directory.
@@ -58,4 +63,4 @@ This template uses [fgcp-ha-ap-sdn.jinja](fgcp-ha-ap-sdn.md) template and helper
 For detailed instructions on how to deploy as well as list of available properties, check this [README](../README.md)
 
 ## See also
-[Other Fortigate designs](../README.md)
+[Other FortiGate designs](../README.md)
