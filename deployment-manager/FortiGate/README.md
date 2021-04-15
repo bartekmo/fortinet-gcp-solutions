@@ -18,11 +18,11 @@ All templates are written for [GCP Deployment Manager](https://cloud.google.com/
 
 Templates (\*.jinja) can be referenced directly (and provided all parameters in the command line), e.g.:
 ```
-gcloud deployment-manager deployments create --template singlevm.jinja --properties=...
+gcloud deployment-manager deployments create DEPLOYMENT_NAME --template singlevm.jinja --properties=...
 ```
 but it's much more practical (and recommended) to create a YAML [configuration file](https://cloud.google.com/deployment-manager/docs/configuration/create-basic-configuration) and use it instead:
 ```
-gcloud deployment-manager deployments create --config=config.yaml
+gcloud deployment-manager deployments create DEPLOYMENT_NAME --config=config.yaml
 ```
 
 As `gcloud` can fetch for you templates from remote servers - you do not need to clone whole repository to your disk. Simply create your *config* file locally and import templates from GitHub, like this:
