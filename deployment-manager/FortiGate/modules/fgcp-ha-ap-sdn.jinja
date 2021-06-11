@@ -92,6 +92,7 @@ resources:
     zone: {{ properties.zones[ loop.index0 ]}}
     instanceType: {{ properties.instanceType }}
     version: {{ properties.version }}
+    multiIpSubnetEnable: {{ properties.multiIpSubnetEnable }}
     name: fgt{{ loop.index }}
     {% if loop.index0==0 and properties.attachPublicIP %}
     externalIP:

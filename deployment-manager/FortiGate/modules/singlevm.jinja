@@ -46,8 +46,10 @@ resources:
       type: PERSISTENT
       boot: true
       autoDelete: true
+      {% if properties.multiIpSubnetEnable %}
       guestOsFeatures:
       - type: MULTI_IP_SUBNET
+      {% endif %}
       licenses:
       - https://www.googleapis.com/compute/v1/projects/fortigcp-project-001/global/licenses/fortigate
       initializeParams:

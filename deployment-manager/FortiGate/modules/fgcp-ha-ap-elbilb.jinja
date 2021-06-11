@@ -25,6 +25,7 @@ resources:
     networks: {{ properties.networks }}
     serviceAccount: {{ properties.serviceAccount }}
     serialPortEnable: {{ properties.serialPortEnable }}
+    multiIpSubnetEnable: {{ properties.multiIpSubnetEnable }}
     {% if "6.4." in properties.version %}
     attachPublicIP: false
     {% endif %}
