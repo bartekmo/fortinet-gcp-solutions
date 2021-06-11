@@ -1,0 +1,107 @@
+# This configuration will deploy a High Availability Active-Passive cluster in LB Sandwich
+# Protected (internal) and external networks are created in configuration and passed to the template
+# Template will create 2 additional VPCs for management and HA internal traffic
+
+
+imports:
+- path: ../deployment-manager/FortiGate/modules/fgcp-ha-ap-elbilb.jinja
+  name: fgcp-ha-ap-elbilb.jinja
+
+resources:
+# first, let's prepare two networks...
+- name: bm-cnvtc-inspection-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+- name: bm-cnvtc-transit-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+- name: bm-cnvtc-heartbeat-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+- name: bm-cnvtc-management-vpc
+  type: compute.v1.network
+  properties:
+    autoCreateSubnetworks: false
+
+# ...and some subnets
+- name: bm-cnvtc-transit-sb
+  type: compute.v1.subnetwork
+  properties:
+    region: europe-west1
+    network: $(ref.bm-cnvtc-transit-vpc.selfLink)
+    ipCidrRange: 172.26.8.8/29
+- name: bm-cnvtc-inspection-sb
+  type: compute.v1.subnetwork
+  properties:
+    region: europe-west1
+    network: $(ref.bm-cnvtc-inspection-vpc.selfLink)
+    ipCidrRange: 172.26.8.0/29
+
+- name: bm-cnvtc-heartbeat-sb
+  type: compute.v1.subnetwork
+  properties:
+    region: europe-west1
+    network: $(ref.bm-cnvtc-heartbeat-vpc.selfLink)
+    ipCidrRange: 172.26.8.16/29
+- name: bm-cnvtc-management-sb
+  type: compute.v1.subnetwork
+  properties:
+    region: europe-west1
+    network: $(ref.bm-cnvtc-management-vpc.selfLink)
+    ipCidrRange: 172.26.8.24/29
+
+# Now it's time to deploy a Fortigates and protect the internalVpc
+- name: fortigate-cluster
+  type: fgcp-ha-ap-elbilb.jinja
+  properties:
+    prefix: bm-cnvtc
+    region: europe-west1
+    zones:
+    - europe-west1-b
+    - europe-west1-c
+    license:
+      type: payg
+    instanceType: e2-highcpu-4
+    version: 6.4.1
+    multiIpSubnetEnable: false
+    networks:
+      external:
+        vpc: $(ref.bm-cnvtc-inspection-vpc.selfLink)
+        subnet: $(ref.bm-cnvtc-inspection-sb.selfLink)
+        ipCidrRange: 172.26.8.0/29
+      internal:
+        vpc: $(ref.bm-cnvtc-transit-vpc.selfLink)
+        subnet: $(ref.bm-cnvtc-transit-sb.selfLink)
+        ipCidrRange: 172.26.8.8/29
+      hasync:
+        vpc: $(ref.bm-cnvtc-heartbeat-vpc.selfLink)
+        subnet: $(ref.bm-cnvtc-heartbeat-sb.selfLink)
+        ipCidrRange: 172.26.8.16/29
+      mgmt:
+        vpc: $(ref.bm-cnvtc-management-vpc.selfLink)
+        subnet: $(ref.bm-cnvtc-management-sb.selfLink)
+        ipCidrRange: 172.26.8.24/29
+    publicIPs:
+    - name: app1
+
+- name: bm-cnvtc-jump
+  type: compute.v1.instance
+  properties:
+    
+
+# Note:
+# configuration and template files can also output values. Here you can see how
+# to easily display your Fortigate public IP and default password:
+outputs:
+- name: Fortigate Template Outputs
+  value: $(ref.fortigate-cluster)
+
+
+# Note2:
+# you probably noticed redundancy in this file (same data typed multiple times).
+# It's a bad practice and leads to problems. In production deployment you'd
+# rather create additional "top level" template (jinja) file, which can use
+# variables and reuse them.
